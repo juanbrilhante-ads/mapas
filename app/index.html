@@ -205,15 +205,27 @@ button { cursor: pointer; }
 }
 .field:hover { border-color: var(--line-strong); }
 .field:focus { outline: none; border-color: var(--blue); }
-#title { font-family: var(--font-d); font-weight: 800; font-size: 16px; letter-spacing: -0.015em; flex: 1 1 200px; max-width: 420px; background: transparent; border-color: transparent; }
-#title:hover, #title:focus { background: var(--bg); }
-#client { width: 190px; }
-.status { font-size: 12.5px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; width: 150px; flex: none; overflow: hidden; text-overflow: ellipsis; }
+.top { flex-wrap: nowrap; gap: 10px; min-height: 52px; }
+.titlebox { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; }
+#title { font-family: var(--font-d); font-weight: 800; font-size: 15.5px; letter-spacing: -0.015em; flex: 0 1 auto; width: 32ch; min-width: 90px; max-width: 100%; height: 34px; padding: 0 8px; background: transparent; border-color: transparent; text-overflow: ellipsis; }
+#title:hover, #title:focus { background: var(--bg); border-color: var(--line); }
+#client { flex: none; width: 150px; height: 28px; border-radius: 999px; padding: 0 12px; font-size: 12.5px; font-weight: 600; color: var(--muted); background: var(--panel-2); border-color: transparent; }
+#client:hover, #client:focus { color: var(--text); border-color: var(--line); }
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; width: 118px; flex: none; overflow: hidden; text-overflow: ellipsis; }
+.status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex: none; }
+.status.pending::before { background: var(--line-strong); }
+.status.err::before { background: var(--coral); }
+.vsep { width: 1px; height: 22px; background: var(--line); flex: none; }
+.btn.icon[aria-pressed="false"] { color: var(--muted); }
+.panel-btn svg { width: 19px; height: 19px; }
 .status.err { color: var(--danger-text); }
 .group { display: flex; gap: 6px; align-items: center; }
 
-.body { flex: 1; min-height: 0; display: grid; grid-template-columns: 264px minmax(0, 1fr) 300px; }
-.side, .insp { background: var(--panel); min-height: 0; overflow: auto; }
+.body { --lw: 264px; --rw: 300px; flex: 1; min-height: 0; display: grid; grid-template-columns: var(--lw) minmax(0, 1fr) var(--rw); transition: grid-template-columns .2s ease; }
+.body.left-off { --lw: 0px; }
+.body.right-off { --rw: 0px; }
+.body.left-off .side, .body.right-off .insp { visibility: hidden; border: 0; }
+.side, .insp { background: var(--panel); min-height: 0; overflow: auto; min-width: 0; }
 .side { border-right: 1px solid var(--line); display: flex; flex-direction: column; }
 .insp { border-left: 1px solid var(--line); }
 .side-head { display: grid; gap: 10px; padding: 16px 14px 12px; position: sticky; top: 0; background: var(--panel); z-index: 1; border-bottom: 1px solid var(--line); }
@@ -398,9 +410,13 @@ kbd { font-family: var(--font-b); font-size: 11.5px; font-weight: 700; color: va
 .dropzone { outline: 3px dashed var(--green); outline-offset: -10px; }
 
 .only-sm { display: none !important; }
+@media (prefers-reduced-motion: reduce) { .body { transition: none; } }
+@media (max-width: 1380px) { .hide-md { display: none !important; } }
 @media (max-width: 1100px) {
-  .body { grid-template-columns: 240px minmax(0, 1fr) 270px; }
-  #client { width: 150px; }
+  .body { --lw: 240px; --rw: 270px; }
+  #client { width: 120px; }
+  .status { width: 22px; }
+  .status span { display: none; }
 }
 @media (max-width: 900px) {
   .only-sm { display: inline-flex !important; }
@@ -414,25 +430,31 @@ kbd { font-family: var(--font-b); font-size: 11.5px; font-weight: 700; color: va
   .insp.idle { display: none; }
   .insp-in { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 }
+@media (max-width: 900px) {
+  .body.right-off .insp { display: none; }
+  .body.left-off .side { visibility: visible; }
+}
 @media (max-width: 640px) {
-  #client { width: 100%; order: 10; flex: 1 1 100%; }
-  #title { order: 9; flex: 1 1 100%; max-width: none; }
-  .top { gap: 8px; }
+  .top { gap: 4px; }
+  #client, .vsep, .top .brand, .top .seg, #b-export, #b-theme, .status { display: none !important; }
+  #title { width: auto; flex: 1 1 auto; min-width: 60px; }
+  .top .group { gap: 4px; }
+  .top .btn { padding: 0 9px; }
 }
 </style>
 
 <div class="app">
   <header class="top">
-    <button class="btn icon only-sm" type="button" id="b-side" aria-label="Abrir lista de mapas">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    <button class="btn icon ghost panel-btn" type="button" id="b-side" aria-pressed="true" title="Mostrar ou ocultar seus mapas (Ctrl + [)" aria-label="Mostrar ou ocultar a lista de mapas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M9 4v16"/></svg>
     </button>
-    <span class="brand"><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M 175 39.7 A 100 100 0 1 0 225.8 107.2" fill="none" stroke="#0090F0" stroke-width="20" stroke-linecap="round"/><rect x="74" y="140" width="28" height="44" rx="6" fill="#0054CC"/><rect x="114" y="112" width="28" height="72" rx="6" fill="#0090F0"/><rect x="154" y="84" width="28" height="100" rx="6" fill="#0090F0"/><path d="M 52 196 C 120 196 176 150 214 70" fill="none" stroke="#00B874" stroke-width="16" stroke-linecap="round"/><path d="M 194 65 L 226 45 L 231 83 Z" fill="#00B874" stroke="#00B874" stroke-width="6" stroke-linejoin="round"/></svg><span class="wordmark hide-sm">Mapas</span></span>
-    <span class="sep hide-sm"></span>
-    <input class="field" id="title" placeholder="Nome do mapa" aria-label="Nome do mapa" autocomplete="off">
-    <input class="field" id="client" list="clients" placeholder="Cliente" aria-label="Cliente" autocomplete="off">
-    <datalist id="clients"></datalist>
-    <span class="status hide-sm" id="status"></span>
-    <span class="spacer"></span>
+    <span class="brand" title="Mapas · Juan Carlos"><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M 175 39.7 A 100 100 0 1 0 225.8 107.2" fill="none" stroke="#0090F0" stroke-width="20" stroke-linecap="round"/><rect x="74" y="140" width="28" height="44" rx="6" fill="#0054CC"/><rect x="114" y="112" width="28" height="72" rx="6" fill="#0090F0"/><rect x="154" y="84" width="28" height="100" rx="6" fill="#0090F0"/><path d="M 52 196 C 120 196 176 150 214 70" fill="none" stroke="#00B874" stroke-width="16" stroke-linecap="round"/><path d="M 194 65 L 226 45 L 231 83 Z" fill="#00B874" stroke="#00B874" stroke-width="6" stroke-linejoin="round"/></svg></span>
+    <div class="titlebox">
+      <input class="field" id="title" placeholder="Nome do mapa" aria-label="Nome do mapa" autocomplete="off">
+      <input class="field" id="client" list="clients" placeholder="Cliente" aria-label="Cliente" autocomplete="off">
+      <datalist id="clients"></datalist>
+      <span class="status" id="status" role="status"></span>
+    </div>
     <div class="group">
       <button class="btn icon ghost hide-sm" type="button" id="b-undo" title="Desfazer (Ctrl+Z)" aria-label="Desfazer">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg>
@@ -440,29 +462,28 @@ kbd { font-family: var(--font-b); font-size: 11.5px; font-weight: 700; color: va
       <button class="btn icon ghost hide-sm" type="button" id="b-redo" title="Refazer (Ctrl+Y)" aria-label="Refazer">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 000 11H13"/></svg>
       </button>
+      <span class="vsep hide-sm"></span>
       <div class="seg" role="group" aria-label="Visão">
         <button type="button" id="v-map" aria-pressed="true">Mapa</button>
         <button type="button" id="v-list" aria-pressed="false">Lista</button>
       </div>
-      <div class="seg hide-sm" role="group" aria-label="Disposição dos ramos">
-        <button type="button" id="m-both" aria-pressed="true" title="Ramos dos dois lados">Dois lados</button>
-        <button type="button" id="m-right" aria-pressed="false" title="Todos os ramos à direita">À direita</button>
-      </div>
-      <button class="btn primary" type="button" id="b-present">
+      <button class="btn primary" type="button" id="b-present" title="Apresentar em tela cheia">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M10 8.5v5l4.2-2.5z" fill="currentColor"/><path d="M8 21h8M12 17v4" stroke-linecap="round"/></svg>
         <span class="hide-sm">Apresentar</span>
       </button>
-      <button class="btn" type="button" id="b-share">
+      <button class="btn" type="button" id="b-share" title="Link do cliente">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4.5 4.5 0 006.4 0l3-3a4.5 4.5 0 00-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 00-6.4 0l-3 3a4.5 4.5 0 006.4 6.4l1-1"/></svg>
-        <span class="hide-sm">Link do cliente</span>
+        <span class="hide-md">Link do cliente</span>
       </button>
-      <button class="btn" type="button" id="b-export" aria-haspopup="menu">
+      <button class="btn icon ghost" type="button" id="b-export" aria-haspopup="menu" title="Exportar PNG ou PDF" aria-label="Exportar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
-        <span class="hide-sm">Exportar</span>
       </button>
       <button class="btn icon ghost" type="button" id="b-theme"></button>
-      <button class="btn icon ghost" type="button" id="b-more" aria-haspopup="menu" aria-label="Mais opções">
+      <button class="btn icon ghost" type="button" id="b-more" aria-haspopup="menu" aria-label="Mais opções" title="Mais opções">
         <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg>
+      </button>
+      <button class="btn icon ghost panel-btn" type="button" id="b-insp" aria-pressed="true" title="Mostrar ou ocultar o painel de tópico e slides (Ctrl + ])" aria-label="Mostrar ou ocultar o painel de tópico e slides">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M15 4v16"/></svg>
       </button>
     </div>
   </header>
@@ -2976,11 +2997,13 @@ async function save() {
 }
 function setStatus(state) {
   const s = $('status');
-  s.classList.toggle('err', !!lastErr);
-  if (!cur) { s.textContent = ''; return; }
-  if (lastErr) { s.textContent = 'Não salvou. Tentando de novo…'; return; }
-  if (state === 'pending' || saving || dirty) { s.textContent = 'Salvando…'; return; }
-  s.textContent = localMode ? 'Só neste navegador' : 'Salvo ' + shortDate(cur.updatedAt || Date.now());
+  const put = (txt, cls, tip) => { s.innerHTML = '<span></span>'; s.firstChild.textContent = txt; s.className = 'status' + (cls ? ' ' + cls : ''); s.title = tip || txt; };
+  if (!cur) { s.innerHTML = ''; s.className = 'status'; s.style.visibility = 'hidden'; return; }
+  s.style.visibility = '';
+  if (lastErr) return put('Não salvou', 'err', 'Não salvou. Tentando de novo…');
+  if (state === 'pending' || saving || dirty) return put('Salvando…', 'pending');
+  const when = shortDate(cur.updatedAt || Date.now());
+  put(localMode ? 'Só local' : 'Salvo', '', localMode ? 'Só neste navegador' : 'Salvo ' + when);
 }
 function saveLocal() { try { localStorage.setItem('mapas-jc-local', JSON.stringify([...maps.entries()])); } catch (e) {} }
 window.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSave(); });
@@ -3051,18 +3074,40 @@ async function deleteMap(id) {
 $('title').addEventListener('input', () => { if (!cur) return; cur.title = $('title').value; changed({ keepInspector: true }); renderList(); });
 $('client').addEventListener('input', () => { if (!cur) return; cur.client = $('client').value; changed({ keepInspector: true }); });
 $('client').addEventListener('change', renderList);
-function setModeUI() {
-  $('m-both').setAttribute('aria-pressed', cur && cur.mode !== 'right');
-  $('m-right').setAttribute('aria-pressed', cur && cur.mode === 'right');
-}
-$('m-both').onclick = () => { if (!cur) return; cur.mode = 'both'; setModeUI(); changed(); board.fitAll(); };
-$('m-right').onclick = () => { if (!cur) return; cur.mode = 'right'; setModeUI(); changed(); board.fitAll(); };
+function setModeUI() {}
+function setLayoutMode(m) { if (!cur) return; cur.mode = m; changed(); board.fitAll(); }
+/* painéis laterais que recolhem */
+const Panels = (() => {
+  const isSmall = () => matchMedia('(max-width: 900px)').matches;
+  let st = { left: true, right: true };
+  try { st = Object.assign(st, JSON.parse(localStorage.getItem('mapas-jc-paineis') || '{}')); } catch (e) {}
+  function apply() {
+    const body = document.querySelector('.body');
+    body.classList.toggle('left-off', !st.left);
+    body.classList.toggle('right-off', !st.right);
+    $('b-side').setAttribute('aria-pressed', isSmall() ? $('side').classList.contains('open') : st.left);
+    $('b-insp').setAttribute('aria-pressed', st.right);
+    try { localStorage.setItem('mapas-jc-paineis', JSON.stringify(st)); } catch (e) {}
+    setTimeout(() => board.resize(), 230);
+  }
+  return {
+    apply,
+    toggleLeft() {
+      if (isSmall()) { $('side').classList.toggle('open'); apply(); return; }
+      st.left = !st.left; apply();
+    },
+    toggleRight(force) { st.right = force == null ? !st.right : force; apply(); },
+    showRight() { if (!st.right) { st.right = true; apply(); } }
+  };
+})();
 $('b-undo').onclick = doUndo;
 $('b-redo').onclick = doRedo;
 $('zin').onclick = () => board.zoomAt(1.2);
 $('zout').onclick = () => board.zoomAt(1 / 1.2);
 $('zfit').onclick = () => board.fitAll();
-$('b-side').onclick = () => $('side').classList.toggle('open');
+$('b-side').onclick = () => Panels.toggleLeft();
+$('b-insp').onclick = () => Panels.toggleRight();
+Panels.apply();
 $('b-new').onclick = () => newDialog();
 $('b-first').onclick = () => newDialog();
 $('b-present').onclick = () => {
@@ -3099,7 +3144,7 @@ $('b-export').onclick = e => {
   if (!cur) return;
   const off = !dl;
   const sub = off ? 'Disponível ao abrir pelo claude.ai' : null;
-  openMenu(e.currentTarget, [
+  openMenu(e.currentTarget.offsetParent ? e.currentTarget : $('b-more'), [
     { t: 'Imagem PNG · fundo escuro', s: sub || 'Para WhatsApp e slides', disabled: off, do: () => exportImg('png', 'dark') },
     { t: 'Imagem PNG · fundo claro', s: sub || 'Para documentos', disabled: off, do: () => exportImg('png', 'light') },
     '-',
@@ -3112,7 +3157,15 @@ $('b-more').onclick = e => {
     { t: 'Novo mapa', do: () => newDialog() },
     { t: 'Importar lista de tópicos', s: 'Cole um texto com recuo ou marcadores', do: () => importDialog() },
     { t: 'Duplicar este mapa', disabled: !cur, do: () => createMap(Object.assign({ title: cur.title + ' cópia', client: cur.client }, cloneWithNewIds(cur))) },
-    { t: 'Montar slides da apresentação', disabled: !cur, do: () => { inspTab = 'slides'; renderInspector(); } },
+    ...(matchMedia('(max-width: 640px)').matches ? [
+      { t: view === 'list' ? 'Ver como mapa' : 'Ver como lista', disabled: !cur, do: () => setView(view === 'list' ? 'map' : 'list') },
+      { t: 'Exportar PNG ou PDF', disabled: !cur, do: () => $('b-export').click() },
+      { t: Theme.get() === 'dark' ? 'Versão clara' : 'Versão escura', do: () => Theme.toggle() },
+      '-'] : []),
+    { t: 'Montar slides da apresentação', disabled: !cur, do: () => { inspTab = 'slides'; Panels.showRight(); renderInspector(); } },
+    '-',
+    { t: (cur && cur.mode !== 'right' ? '✓ ' : '') + 'Ramos dos dois lados', disabled: !cur, do: () => setLayoutMode('both') },
+    { t: (cur && cur.mode === 'right' ? '✓ ' : '') + 'Todos os ramos à direita', disabled: !cur, do: () => setLayoutMode('right') },
     { t: 'Abrir todos os ramos', disabled: !cur, do: () => mutate(() => JC.walk(cur.root, n => { delete n.collapsed; })) },
     '-',
     { t: 'Apagar este mapa', danger: true, disabled: !cur, do: () => confirmDelete() },
@@ -3371,6 +3424,8 @@ document.addEventListener('keydown', e => {
   if (mod && (k === 'z' || k === 'Z')) { e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); return; }
   if (mod && (k === 'y' || k === 'Y')) { e.preventDefault(); doRedo(); return; }
   if (mod && k === '0') { e.preventDefault(); board.fitAll(); return; }
+  if (mod && k === '[') { e.preventDefault(); Panels.toggleLeft(); return; }
+  if (mod && k === ']') { e.preventDefault(); Panels.toggleRight(); return; }
   if (mod && (k === '=' || k === '+')) { e.preventDefault(); board.zoomAt(1.2); return; }
   if (mod && k === '-') { e.preventDefault(); board.zoomAt(1 / 1.2); return; }
   if (mod && (k === 'c' || k === 'x') && sel) {
