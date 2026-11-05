@@ -449,6 +449,12 @@ const JC = (() => {
   }
 
   const GAP_X = [70, 48, 40];
+  const MIN_W = 70, MAX_W = 900;
+  /* alça de redimensionar: canto de baixo, no lado livre do tópico */
+  function handlePos(it) {
+    const side = it.depth === 0 ? 1 : (it.dir < 0 ? -1 : 1);
+    return { x: it.cx + side * it.w / 2, y: it.cy + it.h / 2, side };
+  }
   const GAP_Y = [26, 14, 10];
 
   /* opts: { mode: 'both'|'right', ignoreCollapsed } */
@@ -460,17 +466,19 @@ const JC = (() => {
       ctx.font = st.font;
       const has = n.text && n.text.trim();
       const text = has ? n.text : (depth === 0 ? 'Tema central' : 'Novo tópico');
-      const lines = wrap(ctx, text, st.maxW);
-      const tw = Math.max(depth ? 24 : 60, ...lines.map(l => ctx.measureText(l).width));
       const extraL = n.mark ? 24 : 0;
       const extraR = (n.note || n.link) ? 14 : 0;
+      const fixedW = n.width > 0 ? Math.max(MIN_W, Math.min(MAX_W, n.width)) : 0;
+      const lines = wrap(ctx, text, fixedW ? Math.max(30, fixedW - st.px * 2 - extraL - extraR) : st.maxW);
+      const tw = Math.max(depth ? 24 : 60, ...lines.map(l => ctx.measureText(l).width));
       let color;
       if (depth === 0) color = n.color || THEMES.dark.rootFill;
       else if (depth === 1) color = n.color || BRANCH[idx % BRANCH.length];
       else color = n.color || (parent.depth === 0 ? parent.kidsColor || BRANCH[0] : parent.color);
       let im = null;
       if (n.img && n.img.w > 0 && n.img.h > 0) {
-        const maxW = depth === 0 ? 280 : depth === 1 ? 230 : 210, maxH = 200;
+        const maxW = fixedW ? fixedW - st.px * 2 : depth === 0 ? 280 : depth === 1 ? 230 : 210;
+        const maxH = fixedW ? Math.max(200, maxW * 1.25) : 200;
         let iw = Math.min(maxW, n.img.w), ih = iw * n.img.h / n.img.w;
         if (ih > maxH) { ih = maxH; iw = ih * n.img.w / n.img.h; }
         im = { iw: Math.round(iw), ih: Math.round(ih), off: Math.round(ih) + 8 };
@@ -479,7 +487,8 @@ const JC = (() => {
       const it = {
         id: n.id, node: n, depth, parent, idx, st, lines, extraL, extraR, color, fill, im,
         placeholder: !has,
-        w: Math.ceil(Math.max(tw + extraL + extraR, im ? im.iw : 0) + st.px * 2),
+        w: fixedW || Math.ceil(Math.max(tw + extraL + extraR, im ? im.iw : 0) + st.px * 2),
+        fixed: !!fixedW,
         h: Math.ceil(lines.length * st.lh + st.py * 2 + (im ? im.off : 0)),
         kids: [], hidden: 0
       };
@@ -744,6 +753,14 @@ const JC = (() => {
         ctx.lineWidth = 2; ctx.strokeStyle = o.current === it.id ? '#00B874' : T.sel;
         ctx.setLineDash(o.current === it.id ? [] : [5, 4]); ctx.stroke(); ctx.setLineDash([]);
       }
+      if (o.sel === it.id && o.resizable) {
+        const hp = handlePos(it), s = 11 / Math.max(0.6, v.z);
+        ctx.globalAlpha = 1;
+        rr(ctx, hp.x - s / 2, hp.y - s / 2, s, s, 2.5);
+        ctx.fillStyle = '#0090F0'; ctx.fill();
+        ctx.lineWidth = 2 / Math.max(0.6, v.z); ctx.strokeStyle = T.bg; ctx.stroke();
+        ctx.globalAlpha = a;
+      }
       if (o.drop && o.drop.id === it.id) {
         ctx.strokeStyle = '#00B874'; ctx.lineWidth = 2.5;
         if (o.drop.pos === 'in') { rr(ctx, x - 4, y - 4, it.w + 8, it.h + 8, st.r + 3); ctx.stroke(); }
@@ -813,6 +830,12 @@ const JC = (() => {
       this.draw();
     }
     setLayout(L) { this.L = L; this.draw(); }
+    handleAt(w, ptype) {
+      if (!this.opts.onResize || !this.sel || !this.L) return null;
+      const it = this.L.nodes.get(this.sel); if (!it) return null;
+      const hp = handlePos(it), tol = (ptype === 'touch' ? 18 : 9) / this.view.z;
+      return Math.abs(w.x - hp.x) <= tol && Math.abs(w.y - hp.y) <= tol ? it : null;
+    }
     toWorld(sx, sy) { return { x: (sx - this.view.x) / this.view.z, y: (sy - this.view.y) / this.view.z }; }
     toScreen(wx, wy) { return { x: wx * this.view.z + this.view.x, y: wy * this.view.z + this.view.y }; }
     fitAll(animate = true, bounds) {
@@ -859,7 +882,7 @@ const JC = (() => {
         if (this.L) {
           draw(this.ctx, this.L, Object.assign({
             theme: this.theme, w: this.w, h: this.h, dpr: this.dpr, view: this.view,
-            sel: this.sel, hover: this.hover, drop: this.drop, links: this.links, selLink: this.selLink
+            sel: this.sel, hover: this.hover, drop: this.drop, links: this.links, selLink: this.selLink, resizable: !!this.opts.onResize
           }, this.extra));
         } else {
           this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
@@ -871,7 +894,7 @@ const JC = (() => {
     }
     _bind() {
       const c = this.c, pts = new Map();
-      let pan = null, pinch = null, down = null, dragging = null;
+      let pan = null, pinch = null, down = null, dragging = null, resizing = null;
       const pos = e => { const r = c.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
       c.addEventListener('pointerdown', e => {
         if (e.button > 1) return;
@@ -884,6 +907,8 @@ const JC = (() => {
           pan = null; down = null; dragging = null; return;
         }
         const w = this.toWorld(p.x, p.y);
+        const rz = this.handleAt(w, e.pointerType);
+        if (rz) { resizing = { it: rz, x0: w.x, w0: rz.w, side: handlePos(rz).side, root: rz.depth === 0 }; down = null; pan = null; return; }
         let h = this.L ? hit(this.L, w.x, w.y) : null;
         if (!h && this.L && this.links.length) { const lk = hitLink(this.L, this.links, w.x, w.y, 9 / this.view.z); if (lk) h = { link: lk, part: 'link' }; }
         down = { p, h, t: performance.now(), moved: false, btn: e.button };
@@ -892,6 +917,14 @@ const JC = (() => {
       c.addEventListener('pointermove', e => {
         const p = pos(e);
         if (pts.has(e.pointerId)) pts.set(e.pointerId, p);
+        if (resizing) {
+          const w = this.toWorld(p.x, p.y);
+          let nw = resizing.w0 + (w.x - resizing.x0) * resizing.side * (resizing.root ? 2 : 1);
+          nw = Math.round(Math.max(MIN_W, Math.min(MAX_W, nw)));
+          c.style.cursor = 'ew-resize';
+          this.opts.onResize && this.opts.onResize(resizing.it, nw, false);
+          return;
+        }
         if (pinch && pts.size === 2) {
           const [a, b] = [...pts.values()];
           const d = Math.hypot(a.x - b.x, a.y - b.y);
@@ -920,6 +953,7 @@ const JC = (() => {
         }
         if (!down && this.L && e.pointerType === 'mouse') {
           const w = this.toWorld(p.x, p.y);
+          if (this.handleAt(w, 'mouse')) { c.style.cursor = 'ew-resize'; return; }
           const h = hit(this.L, w.x, w.y);
           const id = h ? h.it.id : null;
           const onLink = !h && this.links.length && hitLink(this.L, this.links, w.x, w.y, 9 / this.view.z);
@@ -929,6 +963,7 @@ const JC = (() => {
       });
       const end = e => {
         pts.delete(e.pointerId);
+        if (resizing) { const r = resizing; resizing = null; c.style.cursor = ''; this.opts.onResize && this.opts.onResize(r.it, null, true); return; }
         if (pinch) { if (pts.size < 2) pinch = null; down = null; return; }
         c.style.cursor = '';
         if (dragging) { this.opts.onDragEnd && this.opts.onDragEnd(dragging); dragging = null; down = null; pan = null; return; }
@@ -946,6 +981,8 @@ const JC = (() => {
       c.addEventListener('pointerleave', () => { if (this.hover) { this.hover = null; this.draw(); } });
       c.addEventListener('dblclick', e => {
         const p = pos(e), w = this.toWorld(p.x, p.y);
+        const rz = this.handleAt(w, 'mouse');
+        if (rz) { this.opts.onResetSize && this.opts.onResetSize(rz); return; }
         const h = this.L ? hit(this.L, w.x, w.y) : null;
         if (h && (h.part === 'node' || h.part === 'image')) this.opts.onDouble && this.opts.onDouble(h.it, e, h.part);
         else if (!h) this.opts.onDoubleBackground && this.opts.onDoubleBackground(e);
@@ -999,6 +1036,7 @@ const JC = (() => {
     if (n.collapsed) ex.x = 1;
     if (n.img && n.img.id) ex.i = { id: n.img.id, w: n.img.w, h: n.img.h };
     if (n.style) ex.f = n.style;
+    if (n.width > 0) ex.w = Math.round(n.width);
     if (n.id && pack.ids && pack.ids.has(n.id)) ex.d = n.id;
     if (Object.keys(ex).length) a.push(ex);
     return a;
@@ -1008,6 +1046,7 @@ const JC = (() => {
     const n = { id: (typeof ex.d === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(ex.d)) ? ex.d : uid(), text: String(a[0] || ''), children: (a[1] || []).map(unpack) };
     if (ex.i && typeof ex.i.id === 'string' && /^[A-Za-z0-9]{8,64}$/.test(ex.i.id) && ex.i.w > 0 && ex.i.h > 0) n.img = { id: ex.i.id, w: +ex.i.w, h: +ex.i.h };
     if (ex.f === 'fill' || ex.f === 'border') n.style = ex.f;
+    if (typeof ex.w === 'number' && ex.w >= 40 && ex.w <= 1200) n.width = Math.round(ex.w);
     if (ex.n) n.note = String(ex.n);
     if (ex.c && /^#[0-9a-fA-F]{6}$/.test(ex.c)) n.color = ex.c.toUpperCase();
     if (ex.m && MARKS[ex.m]) n.mark = ex.m;
